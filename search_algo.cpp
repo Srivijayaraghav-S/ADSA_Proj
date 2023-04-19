@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <set>
 #include <string>
 #include <algorithm>
 #include <sstream>
@@ -13,6 +14,13 @@ struct Element
     string description;
     int price;
     float rating;
+};
+struct ElementComparator
+{
+    bool operator()(const Element &lhs, const Element &rhs) const
+    {
+        return lhs.name < rhs.name;
+    }
 };
 struct SearchResult
 {
@@ -32,7 +40,7 @@ struct cmp
         return lhs.total_score < rhs.total_score;
     }
 };
-void searchHelper(Node *node, const string &query)
+vector<SearchResult> searchHelper(Node *node, const string &query)
 {
     vector<SearchResult> results;
     int i = 0;
@@ -52,17 +60,23 @@ void searchHelper(Node *node, const string &query)
             struct SearchResult result;
             result.e = node->elements[i];
             result.total_score = 3;
-            results.push_back(node->elements[i]);
+            results.push_back(result);
             score += 3;
         }
         else if (lc.find(lq) != string::npos)
         {
-            results.push_back(node->elements[i]);
+            struct SearchResult result;
+            result.e = node->elements[i];
+            result.total_score = 2;
+            results.push_back(result);
             score += 2;
         }
         else if (ld.find(lq) != string::npos)
         {
-            results.push_back(node->elements[i]);
+            struct SearchResult result;
+            result.e = node->elements[i];
+            result.total_score = 1;
+            results.push_back(result);
             score++;
         }
         i++;
@@ -71,17 +85,20 @@ void searchHelper(Node *node, const string &query)
     {
         if (i == node->elements.size() || query <= node->elements[i].name)
         {
-            searchHelper(node->children[i], query);
+            vector<SearchResult> results;
+            results = searchHelper(node->children[i], query);
         }
-        if (i == 0 || query > node->elements[i - 1].name)
+        if (i == 0 || query > node->elements[i].name)
         {
-            searchHelper(node->children[i + 1], query);
+            vector<SearchResult> results;
+            results = searchHelper(node->children[i + 1], query);
         }
     }
     priority_queue<SearchResult, vector<SearchResult>, cmp> pq;
     for (auto &result : results)
     {
-        pq.push({result, 0});
+        // pq.push({result, 0});
+        pq.push(result);
         if (pq.size() > 10)
         {
             pq.pop();
@@ -93,17 +110,31 @@ void searchHelper(Node *node, const string &query)
         topResults.push_back(pq.top());
         pq.pop();
     }
-    reverse(topResults.begin(), topResults.end()); // Higher score is at the end
+    // reverse(topResults.begin(), topResults.end()); // Higher score is at the end
     return topResults;
 }
-void search(Node *node, const string &query, vector<Element> &results)
+vector<SearchResult> search(Node *node, const string &query, vector<Element> &results)
 {
     istringstream iss(query);
     string word;
+    vector<SearchResult> res;
+    vector<SearchResult> r;
     while (iss >> word)
     {
-        searchHelper(node, word);
+        r = searchHelper(node, word);
+        vector<SearchResult> r_new = searchHelper(node, word);
+        r.insert(r.end(), r_new.begin(), r_new.end());
     }
+    set<Element, ElementComparator> seen;
+    for (int i = 0; i < r.size(); i++)
+    {
+        if (seen.find(r[i].e) == seen.end())
+        {
+            res.push_back(r[i]);
+            seen.insert(r[i].e);
+        }
+    }
+    return res;
 }
 
 // function to insert an element into a B-tree
@@ -176,7 +207,7 @@ int main(void)
 {
     Node *root = nullptr;
     // insert some elements into the B-tree
-    Element a = {"Pioneer AVH-2300NEX", "Car and Vehicle Electronics", "This receiver features a 7-inch touchscreen display, Bluetooth connectivity, and compatibility with both Android Auto and Apple CarPlay.", 350, 4.5};
+    Element a = {"Pioneer AVH-2300NEX", "Car and Vehicle Electronics", "This receiver features a 7-inch touchscreen display, Bluetooth connectivity audio, and compatibility with both Android Auto and Apple CarPlay.", 350, 4.5};
     Element b = {"Escort MAX360C", "Car and Vehicle Electronics", "This radar detector offers 360-degree detection and includes GPS technology for added accuracy. It also features a multi-colour OLED display and comes with a free app for added functionality.", 599, 4.6};
     Element c = {"Garmin DriveSmart 55", "Car and Vehicle Electronics", "This GPS device features a 5.5-inch display, voice-activated navigation, and compatibility with Amazon Alexa. It also includes live traffic updates and alerts for upcoming speed changes.", 199, 4.4};
     Element d = {"JL Audio JX500/1D", "Car and Vehicle Electronics", "This monoblock amplifier is designed to deliver high-quality sound to your car's subwoofer. It features a variable low-pass filter and adjustable bass boost for optimal customization.", 249, 4.8};
@@ -187,15 +218,16 @@ int main(void)
     // search for an element in the
     // B-tree by name
     vector<Element> result;
-    search(root, "receiver GPS", result);
-    cout << result.size() << endl;
-    for (auto &element : result)
+    vector<SearchResult> r;
+    r = search(root, "audio", result);
+    cout << r.size() << endl;
+    for (int i = 0; i < r.size(); i++)
     {
-        cout << element.name << endl;
-        cout << element.category << endl;
-        cout << element.description << endl;
-        cout << element.price << endl;
-        cout << element.rating << endl;
+        cout << r[i].e.name << endl;
+        cout << r[i].e.category << endl;
+        cout << r[i].e.description << endl;
+        cout << r[i].e.price << endl;
+        cout << r[i].e.rating << endl;
     }
     return 0;
 }
