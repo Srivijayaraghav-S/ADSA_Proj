@@ -19,22 +19,22 @@ app.get('/script.js', (req, res) => {
   res.sendFile(filename);
 });
 
-app.post('/charcount', (req, res) => {
+app.post('/search_algo', (req, res) => {
   const input = req.body.input;
-  const charcount = spawn('./charcount', [input]);
+  const search_algo = spawn('./search_algo', [input]);
   let output = '';
-  charcount.stdout.on('data', (data) => {
+  search_algo.stdout.on('data', (data) => {
     output += data.toString();
   });
-  charcount.on('close', (code) => {
+  search_algo.on('close', (code) => {
     if (code !== 0) {
-      res.status(500).send(`charcount exited with code ${code}`);
+      res.status(500).send(`search_algo exited with code ${code}`);
     } else {
       try {
-        const counts = JSON.parse(output);
-        res.json(counts);
+        const finalResults = JSON.parse(output);
+        res.json(finalResults);
       } catch (error) {
-        res.status(500).send(`Failed to parse charcount output: ${error}`);
+        res.status(500).send(`Failed to parse search_algo output: ${error}`);
       }
     }
   });

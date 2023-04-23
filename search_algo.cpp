@@ -46,6 +46,13 @@ vector<SearchResult> searchHelper(Node *node, const string &query)
     int i = 0;
     string lq = query;
     transform(lq.begin(), lq.end(), lq.begin(), ::tolower);
+    vector<string> queryWords;
+    stringstream ss(lq);
+    string word;
+    while (ss >> word)
+    {
+        queryWords.push_back(word);
+    }
     while (i < node->elements.size())
     {
         int score = 0;
@@ -55,29 +62,34 @@ vector<SearchResult> searchHelper(Node *node, const string &query)
         transform(ld.begin(), ld.end(), ld.begin(), ::tolower);
         string lc = node->elements[i].category;
         transform(lc.begin(), lc.end(), lc.begin(), ::tolower);
-        if (ln.find(lq) != string::npos)
+        int queryWordIndex = 0;
+        for (auto &queryWord : queryWords)
         {
-            struct SearchResult result;
-            result.e = node->elements[i];
-            result.total_score = 3;
-            results.push_back(result);
-            score += 3;
-        }
-        else if (lc.find(lq) != string::npos)
-        {
-            struct SearchResult result;
-            result.e = node->elements[i];
-            result.total_score = 2;
-            results.push_back(result);
-            score += 2;
-        }
-        else if (ld.find(lq) != string::npos)
-        {
-            struct SearchResult result;
-            result.e = node->elements[i];
-            result.total_score = 1;
-            results.push_back(result);
-            score++;
+            if (ln.find(lq) != string::npos)
+            {
+                struct SearchResult result;
+                result.e = node->elements[i];
+                result.total_score = 3;
+                results.push_back(result);
+                score += 3;
+            }
+            else if (lc.find(lq) != string::npos)
+            {
+                struct SearchResult result;
+                result.e = node->elements[i];
+                result.total_score = 2;
+                results.push_back(result);
+                score += 2;
+            }
+            else if (ld.find(lq) != string::npos)
+            {
+                struct SearchResult result;
+                result.e = node->elements[i];
+                result.total_score = 1;
+                results.push_back(result);
+                score++;
+            }
+            queryWordIndex++;
         }
         i++;
     }
@@ -104,7 +116,7 @@ vector<SearchResult> searchHelper(Node *node, const string &query)
             pq.pop();
         }
     }
-    std::vector<SearchResult> topResults;
+    vector<SearchResult> topResults;
     while (!pq.empty())
     {
         topResults.push_back(pq.top());
@@ -203,6 +215,102 @@ void insert(Node *&node, const Element &element)
         }
     }
 }
+std::string SearchResultToJson(const std::vector<SearchResult> &results)
+{
+    std::stringstream ss;
+    ss << "[\n";
+    for (size_t i = 0; i < results.size(); ++i)
+    {
+        const Element &element = results[i].e;
+        ss << "  {\n"
+           << "    \"element\": {\n"
+           << "      \"name\": \"" << element.name << "\",\n"
+           << "      \"category\": \"" << element.category << "\",\n"
+           << "      \"price\": " << element.price << ",\n"
+           << "      \"description\": \"" << element.description << "\",\n"
+           << "      \"rating\": " << element.rating << "\n"
+           << "    },\n"
+           << "    \"total_score\": " << results[i].total_score << "\n"
+           << "  }";
+        if (i != results.size() - 1)
+        {
+            ss << ",";
+        }
+        ss << "\n";
+    }
+    ss << "]";
+    return ss.str();
+}
+struct SegmentTreeNode
+{
+    float price;
+    float rating;
+    vector<pair<Element, float>> products;
+};
+struct SegmentTree
+{
+    vector<SegmentTreeNode> tree;
+    int n;
+    SegmentTree(const vector<pair<Element, float>> &products)
+    {
+        n = products.size();
+        tree.resize(4 * n);
+        buildTree(products, 0, n - 1, 1);
+    }
+    vector<pair<Element, float>> search(float minPrice, float maxPrice, float minRating, float maxRating)
+    {
+        vector<pair<Element, float>> result;
+        searchTree(minPrice, maxPrice, minRating, maxRating, 1, 0, n - 1, result);
+        return result;
+    }
+
+private:
+    void buildTree(const vector<pair<Element, float>> &products, int left, int right, int node)
+    {
+        if (left == right)
+        {
+            tree[node].price = products[left].first.price;
+            tree[node].rating = products[left].first.rating;
+            tree[node].products.push_back(products[left]);
+            return;
+        }
+        int mid = (left + right) / 2;
+        buildTree(products, left, mid, 2 * node);
+        buildTree(products, mid + 1, right, 2 * node + 1);
+        tree[node].price = max(tree[2 * node].price, tree[2 * node + 1].price);
+        tree[node].rating = max(tree[2 * node].rating, tree[2 * node + 1].rating);
+        merge(tree[2 * node].products.begin(), tree[2 * node].products.end(),
+              tree[2 * node + 1].products.begin(), tree[2 * node + 1].products.end(),
+              back_inserter(tree[node].products),
+              [&](pair<Element, float> &a, pair<Element, float> &b)
+              { return a.second > b.second; });
+    }
+    void searchTree(float minPrice, float maxPrice, float minRating, float maxRating, int node, int left, int right, vector<pair<Element, float>> &result)
+    {
+        if (tree[node].price < minPrice || tree[node].price > maxPrice || tree[node].rating < minRating || tree[node].rating > maxRating)
+        {
+            return;
+        }
+        if (left == right)
+        {
+            for (const auto &p : tree[node].products)
+            {
+                if (p.first.price >= minPrice && p.first.price <= maxPrice && p.first.rating >= minRating && p.first.rating <= maxRating)
+                {
+                    result.push_back(p);
+                }
+                else if (p.first.price > maxPrice)
+                {
+                    break;
+                }
+            }
+            return;
+        }
+        int mid = (left + right) / 2;
+        searchTree(minPrice, maxPrice, minRating, maxRating, 2 * node, left, mid, result);
+        searchTree(minPrice, maxPrice, minRating, maxRating, 2 * node + 1, mid + 1, right, result);
+    }
+};
 int main(int argc, char *argv[])
 {
     if (argc != 2)
@@ -213,16 +321,16 @@ int main(int argc, char *argv[])
     Node *root = nullptr;
     // insert some elements into the B-tree
     vector<Element> products;
-    products.push_back({"iPhone 12 Pro", "Mobile Phones", 999.99, "The latest and greatest iPhone", 4.5});
-    products.push_back({"Samsung Galaxy S21", "Mobile Phones", 799.99, "Top-of-the-line Android phone", 4.3});
+    products.push_back({"iPhone 12", "Mobile Phones", 999.99, "The latest and greatest iPhone", 4.5});
+    products.push_back({"Samsung S21", "Mobile Phones", 799.99, "Top-of-the-line Android phone", 4.3});
     products.push_back({"Google Pixel 5", "Mobile Phones", 699.99, "The best camera on a phone", 4.7});
     products.push_back({"OnePlus 9 Pro", "Mobile Phones", 899.99, "Fast and sleek with a great camera", 4.4});
     products.push_back({"Xiaomi Mi 11", "Mobile Phones", 749.99, "Flagship-level phone at an affordable price", 4.2});
     products.push_back({"Apple iPhone SE", "Mobile Phones", 399.99, "A smaller and more affordable iPhone", 4.1});
     products.push_back({"Samsung Galaxy A52", "Mobile Phones", 449.99, "A great mid-range option from Samsung", 4.0});
-    products.push_back({"Google Pixel 4a", "Mobile Phones", 349.99, "The best camera for the price", 4.6});
+    products.push_back({"Nokia Lumia 512", "Mobile Phones", 349.99, "The best camera for the price", 4.6});
     products.push_back({"OnePlus Nord", "Mobile Phones", 549.99, "A budget-friendly phone with premium features", 4.3});
-    products.push_back({"Xiaomi Redmi Note 10 Pro", "Mobile Phones", 399.99, "An excellent phone for the price", 4.2});
+    products.push_back({"Xiaomi Redmi Note 10", "Mobile Phones", 399.99, "An excellent phone for the price", 4.2});
 
     // Add 20 cameras
     products.push_back({"Sony Alpha A7 III", "Cameras", 1999.99, "A professional-grade full-frame mirrorless camera", 4.9});
@@ -237,12 +345,12 @@ int main(int argc, char *argv[])
     products.push_back({"Sony ZV-1", "Cameras", 799.99, "A great vlogging camera with excellent autofocus", 4.1});
 
     // Add 20 smartwatches
-    products.push_back({"Apple Watch Series 6", "Smartwatches", 399.99, "The latest and greatest smartwatch from Apple", 4.7});
-    products.push_back({"Samsung Galaxy Watch 3", "Smartwatches", 329.99, "A premium smartwatch with great fitness features", 4.5});
+    products.push_back({"Apple Series 6", "Smartwatches", 399.99, "The latest and greatest smartwatch from Apple", 4.7});
+    products.push_back({"Samsung Galaxy Watch", "Smartwatches", 329.99, "A premium smartwatch with great fitness features", 4.5});
     products.push_back({"Fitbit Versa 3", "Smartwatches", 229.99, "A great fitness-focused smartwatch", 4.3});
     products.push_back({"Garmin Venu 2", "Smartwatches", 399.99, "A great GPS-enabled smartwatch for outdoor activities", 4.6});
     products.push_back({"Fossil Gen 5", "Smartwatches", 249.99, "A stylish and functional Wear OS smartwatch", 4.2});
-    products.push_back({"TicWatch Pro 3", "Smartwatches", 299.99, "A great value for a Wear OS smartwatch", 4.0});
+    products.push_back({"TicWatch 3", "Smartwatches", 299.99, "A great value for a Wear OS smartwatch", 4.0});
     products.push_back({"Huawei Watch GT 2 Pro", "Smartwatches", 299.99, "A premium-looking smartwatch with long battery life", 4.4});
     products.push_back({"Amazfit GTR 2", "Smartwatches", 179.99, "A great budget-friendly option with great battery life", 4.1});
     products.push_back({"Polar Vantage V2", "Smartwatches", 499.99, "A great multisport watch with advanced fitness tracking", 4.5});
@@ -327,16 +435,34 @@ int main(int argc, char *argv[])
     // B-tree by name
     vector<Element> result;
     vector<SearchResult> r;
-    r = search(root, "speaker", result);
-    cout << r.size() << endl;
+    r = search(root, argv[1], result);
+    vector<pair<Element, float>> p;
     for (int i = 0; i < r.size(); i++)
     {
-        cout << r[i].e.name << endl;
-        cout << r[i].e.category << endl;
-        cout << r[i].e.description << endl;
-        cout << r[i].e.price << endl;
-        cout << r[i].e.rating << endl;
+        p.push_back(make_pair(r[i].e, r[i].total_score));
     }
-
+    // for (int i = 0; i < p.size(); i++)
+    // {
+    //     cout << p[i].first.name << endl;
+    //     cout << p[i].first.category << endl;
+    //     cout << p[i].first.price << endl;
+    //     cout << p[i].first.description << endl;
+    //     cout << p[i].first.rating << endl;
+    //     cout << p[i].second << endl;
+    // }
+    SegmentTree tree(p);
+    vector<pair<Element, float>> results = tree.search(15.00, 18.00, 4.1, 4.3);
+    // for (const auto &p : results)
+    // {
+    //     cout << "Name: " << p.first.name << endl;
+    //     cout << "Category: " << p.first.category << endl;
+    //     cout << "Price: " << p.first.price << endl;
+    //     cout << "Description: " << p.first.description << endl;
+    //     cout << "Rating: " << p.first.rating << endl;
+    //     cout << "Total Score: " << p.second << endl;
+    //     cout << endl;
+    // }
+    string finalResult = SearchResultToJson(r);
+    cout << finalResult << endl;
     return 0;
 }
