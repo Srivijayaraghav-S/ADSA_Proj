@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <sstream>
 #include <queue>
+#include <stdlib.h>
+#include <limits.h>
 const int M = 100; // order of the B-tree
 using namespace std;
 struct Element
@@ -27,6 +29,11 @@ struct SearchResult
     Element e;
     int total_score;
 };
+struct sr
+{
+    int id;
+    float price, rating;
+};
 struct Node
 {
     vector<Element> elements;
@@ -40,6 +47,15 @@ struct cmp
         return lhs.total_score < rhs.total_score;
     }
 };
+struct node
+{
+    float min_price;
+    float max_price;
+    vector<sr> elements;
+    node *left;
+    node *right;
+};
+
 vector<SearchResult> searchHelper(Node *node, const string &query)
 {
     vector<SearchResult> results;
@@ -241,76 +257,49 @@ std::string SearchResultToJson(const std::vector<SearchResult> &results)
     ss << "]";
     return ss.str();
 }
-struct SegmentTreeNode
+node *build(vector<sr> &elements, int start, int end)
 {
-    float price;
-    float rating;
-    vector<pair<Element, float>> products;
-};
-struct SegmentTree
-{
-    vector<SegmentTreeNode> tree;
-    int n;
-    SegmentTree(const vector<pair<Element, float>> &products)
+    if (start == end)
     {
-        n = products.size();
-        tree.resize(4 * n);
-        buildTree(products, 0, n - 1, 1);
+        node *leaf = new node{elements[start].price, elements[start].price, {elements[start]}, nullptr, nullptr};
+        return leaf;
     }
-    vector<pair<Element, float>> search(float minPrice, float maxPrice, float minRating, float maxRating)
-    {
-        vector<pair<Element, float>> result;
-        searchTree(minPrice, maxPrice, minRating, maxRating, 1, 0, n - 1, result);
-        return result;
-    }
+    int mid = start + (end - start) / 2;
+    node *left_child = build(elements, start, mid);
+    node *right_child = build(elements, mid + 1, end);
+    node *parent = new node{min(left_child->min_price, right_child->min_price),
+                            max(left_child->max_price, right_child->max_price),
+                            {},
+                            left_child,
+                            right_child};
+    parent->elements.reserve(left_child->elements.size() + right_child->elements.size());
+    parent->elements.insert(parent->elements.end(), left_child->elements.begin(), left_child->elements.end());
+    parent->elements.insert(parent->elements.end(), right_child->elements.begin(), right_child->elements.end());
+    return parent;
+}
 
-private:
-    void buildTree(const vector<pair<Element, float>> &products, int left, int right, int node)
+vector<sr> sr_query(node *node, float min_price, float max_price)
+{
+    if (node == nullptr)
     {
-        if (left == right)
-        {
-            tree[node].price = products[left].first.price;
-            tree[node].rating = products[left].first.rating;
-            tree[node].products.push_back(products[left]);
-            return;
-        }
-        int mid = (left + right) / 2;
-        buildTree(products, left, mid, 2 * node);
-        buildTree(products, mid + 1, right, 2 * node + 1);
-        tree[node].price = max(tree[2 * node].price, tree[2 * node + 1].price);
-        tree[node].rating = max(tree[2 * node].rating, tree[2 * node + 1].rating);
-        merge(tree[2 * node].products.begin(), tree[2 * node].products.end(),
-              tree[2 * node + 1].products.begin(), tree[2 * node + 1].products.end(),
-              back_inserter(tree[node].products),
-              [&](pair<Element, float> &a, pair<Element, float> &b)
-              { return a.second > b.second; });
+        return {};
     }
-    void searchTree(float minPrice, float maxPrice, float minRating, float maxRating, int node, int left, int right, vector<pair<Element, float>> &result)
+    if (node->min_price > max_price || node->max_price < min_price)
     {
-        if (tree[node].price < minPrice || tree[node].price > maxPrice || tree[node].rating < minRating || tree[node].rating > maxRating)
-        {
-            return;
-        }
-        if (left == right)
-        {
-            for (const auto &p : tree[node].products)
-            {
-                if (p.first.price >= minPrice && p.first.price <= maxPrice && p.first.rating >= minRating && p.first.rating <= maxRating)
-                {
-                    result.push_back(p);
-                }
-                else if (p.first.price > maxPrice)
-                {
-                    break;
-                }
-            }
-            return;
-        }
-        int mid = (left + right) / 2;
-        searchTree(minPrice, maxPrice, minRating, maxRating, 2 * node, left, mid, result);
-        searchTree(minPrice, maxPrice, minRating, maxRating, 2 * node + 1, mid + 1, right, result);
+        return {};
     }
-};
+    if (node->min_price >= min_price && node->max_price <= max_price)
+    {
+        return node->elements;
+    }
+    vector<sr> left_results = sr_query(node->left, min_price, max_price);
+    vector<sr> right_results = sr_query(node->right, min_price, max_price);
+    vector<sr> results;
+    results.reserve(left_results.size() + right_results.size());
+    results.insert(results.end(), left_results.begin(), left_results.end());
+    results.insert(results.end(), right_results.begin(), right_results.end());
+    return results;
+}
 int main(int argc, char *argv[])
 {
     if (argc != 2)
@@ -436,11 +425,43 @@ int main(int argc, char *argv[])
     vector<Element> result;
     vector<SearchResult> r;
     r = search(root, argv[1], result);
-    vector<pair<Element, float>> p;
+    // vector<pair<Element, float>> p;
+    // for (int i = 0; i < r.size(); i++)
+    // {
+    //     p.push_back(make_pair(r[i].e, r[i].total_score));
+    // }
+    vector<sr> sr_v;
     for (int i = 0; i < r.size(); i++)
     {
-        p.push_back(make_pair(r[i].e, r[i].total_score));
+        sr_v.push_back({i, r[i].e.price, r[i].e.rating});
     }
+    node *rt = build(sr_v, 0, sr_v.size() - 1);
+    float min_price = 14.00;
+    float max_price = 18.00;
+    vector<sr> results = sr_query(rt, min_price, max_price);
+    // for (const sr &e : results)
+    // {
+    //     cout << e.id << " " << e.price << " " << e.rating << endl;
+    // }
+    vector<SearchResult> fsr;
+    for (const sr &e : results)
+    {
+        fsr.push_back(r[e.id]);
+    }
+    // SegmentTree tree(sr_v.size());
+    // for (int i = 0; i < sr_v.size(); i++)
+    // {
+    //     tree.insert(1, 1, sr_v.size(), sr_v[i]);
+    // }
+    // vector<sr> filtered_res = tree.query(1, 0, sr_v.size(), 14, 18, 4.3, 4.6);
+    // for (int i = 0; i < filtered_res.size(); i++)
+    // {
+    //     cout << r[filtered_res[i].id].e.name << endl;
+    //     cout << r[filtered_res[i].id].e.category << endl;
+    //     cout << r[filtered_res[i].id].e.price << endl;
+    //     cout << r[filtered_res[i].id].e.description << endl;
+    //     cout << r[filtered_res[i].id].e.rating << endl;
+    // }
     // for (int i = 0; i < p.size(); i++)
     // {
     //     cout << p[i].first.name << endl;
@@ -450,8 +471,25 @@ int main(int argc, char *argv[])
     //     cout << p[i].first.rating << endl;
     //     cout << p[i].second << endl;
     // }
-    SegmentTree tree(p);
-    vector<pair<Element, float>> results = tree.search(15.00, 18.00, 4.1, 4.3);
+    // SegmentTree st(sizeof(r));
+    // for (int i = 0; i < r.size(); i++)
+    // {
+    //     st.insert(1, 1, r.size(), r[i]);
+    // }
+
+    // cout << r.size() << endl;
+    // auto res = st.query(1, 1, r.size(), 14, 18, 4.3, 4.6);
+    // cout << res.size() << endl;
+    // for (auto s : res)
+    // {
+    //     cout << s.e.name << endl;
+    //     cout << s.e.category << endl;
+    //     cout << s.e.price << endl;
+    //     cout << s.e.description << endl;
+    //     cout << s.e.rating << endl;
+    //     cout << s.total_score << endl;
+    // }
+    // vector<pair<Element, float>> results = tree.search(15.00, 18.00, 4.1, 4.3);
     // for (const auto &p : results)
     // {
     //     cout << "Name: " << p.first.name << endl;
@@ -462,7 +500,7 @@ int main(int argc, char *argv[])
     //     cout << "Total Score: " << p.second << endl;
     //     cout << endl;
     // }
-    string finalResult = SearchResultToJson(r);
+    string finalResult = SearchResultToJson(fsr);
     cout << finalResult << endl;
     return 0;
 }
