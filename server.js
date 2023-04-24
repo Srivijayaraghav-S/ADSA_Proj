@@ -21,7 +21,15 @@ app.get('/script.js', (req, res) => {
 
 app.post('/search_algo', (req, res) => {
   const input = req.body.input;
-  const search_algo = spawn('./search_algo', [input]);
+  const min_price = req.body.min_price;
+  console.log("min_price: " + min_price);
+  const max_price = req.body.max_price;
+  console.log("max_price: " + max_price);
+  const min_rating = req.body.min_rating;
+  console.log("min_rating: " + min_rating);
+  const max_rating = req.body.max_rating;
+  console.log("max_rating: " + max_rating);
+  const search_algo = spawn('./search_algo', [input, min_price, max_price, min_rating, max_rating]);
   let output = '';
   search_algo.stdout.on('data', (data) => {
     output += data.toString();

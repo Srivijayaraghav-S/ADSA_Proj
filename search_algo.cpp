@@ -55,7 +55,14 @@ struct node
     node *left;
     node *right;
 };
-
+struct node2
+{
+    float min_rating;
+    float max_rating;
+    vector<sr> elements2;
+    node2 *left;
+    node2 *right;
+};
 vector<SearchResult> searchHelper(Node *node, const string &query)
 {
     vector<SearchResult> results;
@@ -278,6 +285,48 @@ node *build(vector<sr> &elements, int start, int end)
     return parent;
 }
 
+vector<sr> sr_query_2(node2 *node2, float min_rating, float max_rating)
+{
+    if (node2 == nullptr)
+    {
+        return {};
+    }
+    if (node2->min_rating > max_rating || node2->max_rating < min_rating)
+    {
+        return {};
+    }
+    if (node2->min_rating >= min_rating && node2->max_rating <= max_rating)
+    {
+        return node2->elements2;
+    }
+    vector<sr> left_results = sr_query_2(node2->left, min_rating, max_rating);
+    vector<sr> right_results = sr_query_2(node2->right, min_rating, max_rating);
+    vector<sr> results;
+    results.reserve(left_results.size() + right_results.size());
+    results.insert(results.end(), left_results.begin(), left_results.end());
+    results.insert(results.end(), right_results.begin(), right_results.end());
+    return results;
+}
+node2 *build_2(vector<sr> &elements2, int start, int end)
+{
+    if (start == end)
+    {
+        node2 *leaf = new node2{elements2[start].rating, elements2[start].rating, {elements2[start]}, nullptr, nullptr};
+        return leaf;
+    }
+    int mid = start + (end - start) / 2;
+    node2 *left_child = build_2(elements2, start, mid);
+    node2 *right_child = build_2(elements2, mid + 1, end);
+    node2 *parent = new node2{min(left_child->min_rating, right_child->min_rating),
+                              max(left_child->max_rating, right_child->max_rating),
+                              {},
+                              left_child,
+                              right_child};
+    parent->elements2.reserve(left_child->elements2.size() + right_child->elements2.size());
+    parent->elements2.insert(parent->elements2.end(), left_child->elements2.begin(), left_child->elements2.end());
+    parent->elements2.insert(parent->elements2.end(), right_child->elements2.begin(), right_child->elements2.end());
+    return parent;
+}
 vector<sr> sr_query(node *node, float min_price, float max_price)
 {
     if (node == nullptr)
@@ -302,7 +351,7 @@ vector<sr> sr_query(node *node, float min_price, float max_price)
 }
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    if (argc != 6)
     {
         cout << "Usage: " << argv[0] << " <input_file>" << endl;
         return 1;
@@ -436,8 +485,10 @@ int main(int argc, char *argv[])
         sr_v.push_back({i, r[i].e.price, r[i].e.rating});
     }
     node *rt = build(sr_v, 0, sr_v.size() - 1);
-    float min_price = 14.00;
-    float max_price = 18.00;
+    float min_price = atof(argv[2]);
+    float max_price = atof(argv[3]);
+    // float min_price = 14;
+    // float max_price = 18;
     vector<sr> results = sr_query(rt, min_price, max_price);
     // for (const sr &e : results)
     // {
@@ -447,6 +498,26 @@ int main(int argc, char *argv[])
     for (const sr &e : results)
     {
         fsr.push_back(r[e.id]);
+    }
+    vector<sr> sr_v_f;
+    for (int i = 0; i < fsr.size(); i++)
+    {
+        sr_v_f.push_back({i, fsr[i].e.price, fsr[i].e.rating});
+    }
+    node2 *rt2 = build_2(sr_v_f, 0, sr_v_f.size() - 1);
+    float min_rating = atof(argv[4]);
+    float max_rating = atof(argv[5]);
+    // float min_price = 14;
+    // float max_price = 18;
+    vector<sr> results2 = sr_query_2(rt2, min_rating, max_rating);
+    // for (const sr &e : results)
+    // {
+    //     cout << e.id << " " << e.price << " " << e.rating << endl;
+    // }
+    vector<SearchResult> fsr_f;
+    for (const sr &e : results2)
+    {
+        fsr_f.push_back(fsr[e.id]);
     }
     // SegmentTree tree(sr_v.size());
     // for (int i = 0; i < sr_v.size(); i++)

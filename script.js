@@ -1,9 +1,18 @@
 function submitForm(event) {
     event.preventDefault();
     const input = document.getElementById('input').value;
+    console.log(input);
+    const minPrice = parseFloat(document.getElementById('minPrice').value);
+    console.log(minPrice);
+    const maxPrice = parseFloat(document.getElementById('maxPrice').value);
+    console.log(maxPrice);
+    const minRating = parseFloat(document.getElementById('minRating').value);
+    console.log(minRating);
+    const maxRating = parseFloat(document.getElementById('maxRating').value);
+    console.log(maxRating);
     fetch('/search_algo', {
       method: 'POST',
-      body: JSON.stringify({ input }),
+      body: JSON.stringify({ input, min_price: minPrice, max_price: maxPrice, min_rating: minRating, max_rating: maxRating }),
       headers: { 'Content-Type': 'application/json' }
     })
     .then(response => response.json())
@@ -36,6 +45,10 @@ function submitForm(event) {
     })
     .catch(error => console.error(error));
     document.getElementById('input').value = '';
+    document.getElementById('minPrice').value = '';
+    document.getElementById('maxPrice').value = '';
+    document.getElementById('minRating').value = '';
+    document.getElementById('maxRating').value = '';
     console.clear();
 }
 
