@@ -1,5 +1,5 @@
 # E-Commerce Website with Optimized Product Search
-A repository in C++/HTML/CSS/JavaScript/NodeJS to implement an e-commerce website implmenting an optimized product search algorithm using B-Trees, Priority Queues and Segment Trees.
+A repository in C++/HTML/CSS/JavaScript/NodeJS to create an e-commerce website implementing an optimized product search algorithm using B-Trees, Priority Queues and Segment Trees.
 ## Installation
 Clone the repository from Github.
 ```bash
