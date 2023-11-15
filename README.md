@@ -1,6 +1,10 @@
 # E-Commerce Website with Optimized Product Search
 A repository in C++/HTML/CSS/JavaScript/NodeJS to create an e-commerce website implementing an optimized product search algorithm using B-Trees, Priority Queues and Segment Trees.
 
+## Contributors:
+- [Srivijayaraghav Srinivasan](https://github.com/Srivijayaraghav-S)
+- [Arati Mohapatra](https://github.com/aratimo)
+  
 ## Render Link
 https://opti-search-algo.onrender.com/
 
